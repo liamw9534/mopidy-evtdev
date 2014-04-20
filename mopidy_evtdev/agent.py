@@ -163,7 +163,10 @@ class EvtDevAgent(object):
     @staticmethod
     def _close_input_device_list(input_devices):
         for device in input_devices:
-            device.close()
+            try:
+                device.close()
+            except OSError:
+                pass
 
     def _register_refresh_timeout(self):
         tag = gobject.timeout_add(self.refresh * 1000,
