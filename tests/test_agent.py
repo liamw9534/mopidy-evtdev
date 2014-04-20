@@ -90,36 +90,36 @@ class EvtDevAgentTest(unittest.TestCase):
 
     def test_volume_up(self):
         volume = 10
-        self.core.playback.volume = volume
+        self.core.playback.volume.get.return_value = volume
         self.devices[0].send_volume_up()
-        self.assertEqual(self.core.playback.volume, min(100, volume + self.vol_step_size))
+        self.core.playback.set_volume.assert_called_once_with(min(100, volume + self.vol_step_size))
         self.core.playback.set_mute.assert_called_once_with(False)
         self.core.reset_mock()
         volume = 99
-        self.core.playback.volume = volume
+        self.core.playback.volume.get.return_value = volume
         self.devices[0].send_volume_up()
-        self.assertEqual(self.core.playback.volume, min(100, volume + self.vol_step_size))
+        self.core.playback.set_volume.assert_called_once_with(min(100, volume + self.vol_step_size))
         self.core.playback.set_mute.assert_called_once_with(False)
 
     def test_volume_down(self):
         volume = 20
-        self.core.playback.volume = volume
+        self.core.playback.volume.get.return_value = volume
         self.devices[0].send_volume_down()
-        self.assertEqual(self.core.playback.volume, max(0, volume - self.vol_step_size))
+        self.core.playback.set_volume.assert_called_once_with(max(0, volume - self.vol_step_size))
         self.core.playback.set_mute.assert_called_once_with(False)
         self.core.reset_mock()
         volume = 1
-        self.core.playback.volume = volume
+        self.core.playback.volume.get.return_value = volume
         self.devices[0].send_volume_down()
-        self.assertEqual(self.core.playback.volume, max(0, volume - self.vol_step_size))
+        self.core.playback.set_volume.assert_called_once_with(max(0, volume - self.vol_step_size))
         self.core.playback.set_mute.assert_called_once_with(False)
 
     def test_mute(self):
-        self.core.playback.mute = True
+        self.core.playback.mute.get.return_value = True
         self.devices[0].send_mute()
         self.core.playback.set_mute.assert_called_once_with(False)
         self.core.reset_mock()
-        self.core.playback.mute = False
+        self.core.playback.mute.get.return_value = False
         self.devices[0].send_mute()
         self.core.playback.set_mute.assert_called_once_with(True)
 

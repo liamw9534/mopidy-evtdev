@@ -18,7 +18,7 @@ class EvtDevFrontend(pykka.ThreadingActor):
 
         # EvtDevAgent performs all the handling of device key presses on our behalf
         self.agent = EvtDevAgent(core, dev_dir, devices, vol_step_size, refresh)
-        logger.info('Agent started')
+        logger.info('EvtDevAgent started')
 
     def on_stop(self):
         """
@@ -35,4 +35,4 @@ class EvtDevFrontend(pykka.ThreadingActor):
         logged, and the actor will stop.
         """
         self.agent.stop()
-        logger.info('Agent stopped')
+        logger.info('EvtDevAgent stopped')

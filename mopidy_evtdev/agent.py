@@ -120,41 +120,52 @@ class EvtDevAgent(object):
                 self.last_event = event
 
     def _play_pause(self):
-        if (self.core.playback.state.get() == PlaybackState.PLAYING):
-            logger.info('EvtDevAgent has paused playback')
+        state = self.core.playback.state.get()
+        if (state == PlaybackState.PLAYING):
             self.core.playback.pause()
-        elif (self.core.playback.state.get() == PlaybackState.PAUSED):
-            logger.info('EvtDevAgent has resumed playback')
+            logger.info('EvtDevAgent has paused playback')
+        elif (state == PlaybackState.PAUSED):
             self.core.playback.resume()
+            logger.info('EvtDevAgent has resumed playback')
         else:
-            logger.info('EvtDevAgent has started playback')
             self.core.playback.play()
+            logger.info('EvtDevAgent has started playback')
 
     def _stop(self):
-        logger.info('EvtDevAgent has stopped playback')
         self.core.playback.stop()
+        logger.info('EvtDevAgent has stopped playback')
 
     def _volume_up(self):
-        logger.info('EvtDevAgent has set volume +' + str(self.vol_step_size))
-        self.core.playback.set_mute(False)
-        self.core.playback.volume = min(100, self.core.playback.volume + self.vol_step_size)
+        volume = self.core.playback.volume.get()
+        if (volume is not None):
+          volume = min(100, volume + self.vol_step_size)
+          self.core.playback.set_volume(volume)
+          self.core.playback.set_mute(False)
+          logger.info('EvtDevAgent has set volume +%d to %d', self.vol_step_size, volume)
     
     def _volume_down(self):
-        logger.info('EvtDevAgent has set volume -' + str(self.vol_step_size))
-        self.core.playback.set_mute(False)
-        self.core.playback.volume = max(0, self.core.playback.volume - self.vol_step_size)
+        volume = self.core.playback.volume.get()
+        if (volume is not None):
+          volume = max(0, volume - self.vol_step_size)
+          self.core.playback.set_volume(volume)
+          self.core.playback.set_mute(False)
+          logger.info('EvtDevAgent has set volume -%d to %d', self.vol_step_size, volume)
 
     def _mute(self):
-        logger.info('EvtDevAgent has toggled mute')
-        self.core.playback.set_mute(not self.core.playback.mute)
+        mute = self.core.playback.mute.get()
+        if (mute is not None):
+          state = {True:'on', False:'off'}
+          mute = not mute
+          self.core.playback.set_mute(mute)
+          logger.info('EvtDevAgent has set mute: %s', state[mute])
 
     def _next_track(self):
-        logger.info('EvtDevAgent has selected next track')
         self.core.playback.next()
+        logger.info('EvtDevAgent has selected next track')
 
     def _prev_track(self):
-        logger.info('EvtDevAgent has selected previous track')
         self.core.playback.previous()
+        logger.info('EvtDevAgent has selected previous track')
 
     @staticmethod
     def _open_device_list(devices):
