@@ -23,6 +23,12 @@ from mopidy.core import PlaybackState
 
 import logging, sys, threading
 
+context = gobject.MainLoop().get_context()
+
+def iterateMain():
+    while context.pending():
+        context.iteration(False)
+
 @unittest.skipUnless(evdev, 'evdev not found')
 @unittest.skipUnless(uinput, 'uinput not found')
 class EvtDevAgentTest(unittest.TestCase):
@@ -143,6 +149,10 @@ class DummyInputDev(uinput.Device):
                   uinput.KEY_VOLUMEDOWN, uinput.KEY_STOP, uinput.KEY_STOPCD, uinput.KEY_MUTE]
         super(DummyInputDev, self).__init__(events, name=name)
 
+    def emit_click(self, key):
+        super(DummyInputDev, self).emit_click(key)
+        iterateMain()
+
     def send_play(self):
         self.emit_click(uinput.KEY_PLAY)
 
@@ -175,25 +185,3 @@ class DummyInputDev(uinput.Device):
 
     def send_stop_cd(self):
         self.emit_click(uinput.KEY_STOPCD)
-
-# Unit test wrapper to stop gobject mainloop when complete
-def runtests(loop):
-    unittest.main(exit=False)
-    loop.quit()
-
-# Wrapper to run unittests in a background thread
-# while allowing gobject mainloop to run in foreground
-def main():
-    loop = gobject.MainLoop()
-    try:
-        t = threading.Thread(target=runtests, args=[loop])
-        t.start()
-        loop.run()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        loop.quit()
-    t.join()
-
-if __name__ == '__main__':
-    main()
