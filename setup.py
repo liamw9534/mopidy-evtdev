@@ -32,7 +32,7 @@ setup(
     tests_require=[
         'nose',
         'mock >= 1.0',
-        'uinput >= 0.10.1'
+        'python-uinput >= 0.10.1'
     ],
     entry_points={
         'mopidy.ext': [

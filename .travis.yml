@@ -14,7 +14,7 @@ install:
   - "sudo apt-get update"
   - "sudo pip install tox"
   - "sudo pip install evdev"
-  - "sudo pip install uinput"
+  - "sudo pip install python-uinput"
 
 script:
   - "tox -e $TOX_ENV"
