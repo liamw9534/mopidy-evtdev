@@ -1,19 +1,17 @@
 language: python
 
-env:
-  - TOX_ENV=py27
+before_script:
+  - "rm $VIRTUAL_ENV/lib/python$TRAVIS_PYTHON_VERSION/no-global-site-packages.txt"
 
 install:
   - "wget -O - http://apt.mopidy.com/mopidy.gpg | sudo apt-key add -"
   - "sudo wget -O /etc/apt/sources.list.d/mopidy.list http://apt.mopidy.com/mopidy.list"
-  - "sudo apt-get update"
-  - "sudo apt-get install python-gobject-2"
-  - "sudo pip install tox"
-  - "sudo pip install evdev"
-  - "sudo pip install python-uinput"
+  - "sudo apt-get update || yes"
+  - "sudo apt-get install mopidy"
+  - "sudo pip install --allow-unverified=mopidy coveralls mopidy=dev evdev python-uinput"
 
 script:
-  - "sudo tox -e $TOX_ENV"
+  - "nosetests --with-coverage --cover-package=mopidy_evtdev"
 
 after_success:
-  - "if [ $TOX_ENV == 'py27' ]; then pip install coveralls; coveralls; fi"
+  - "coveralls"
