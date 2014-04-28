@@ -11,7 +11,7 @@ install:
   - "sudo pip install --allow-unverified=mopidy coveralls mopidy==dev evdev python-uinput"
 
 script:
-  - "nosetests --with-coverage --cover-package=mopidy_evtdev"
+  - "sudo nosetests --with-coverage --cover-package=mopidy_evtdev"
 
 after_success:
   - "coveralls"
