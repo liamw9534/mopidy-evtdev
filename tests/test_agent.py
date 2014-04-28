@@ -21,11 +21,9 @@ if evdev and uinput:
 
 from mopidy.core import PlaybackState
 
-import logging, sys, threading
-
 context = gobject.MainLoop().get_context()
 
-def iterateMain():
+def iterate_main():
     while context.pending():
         context.iteration(False)
 
@@ -151,7 +149,7 @@ class DummyInputDev(uinput.Device):
 
     def emit_click(self, key):
         super(DummyInputDev, self).emit_click(key)
-        iterateMain()
+        iterate_main()
 
     def send_play(self):
         self.emit_click(uinput.KEY_PLAY)
