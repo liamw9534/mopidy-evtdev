@@ -69,7 +69,7 @@ Project resources
 Changelog
 =========
 
-v0.1.0 (UNRELEASED)
+v0.1.0
 ----------------------------------------
 
 - Initial release.
