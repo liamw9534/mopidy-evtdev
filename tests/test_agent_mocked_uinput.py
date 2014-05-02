@@ -2,6 +2,8 @@ from __future__ import unicode_literals
 
 import mock
 import unittest
+import json
+import socket
 
 import gobject
 gobject.threads_init()
@@ -11,12 +13,7 @@ try:
 except ImportError:
     evdev = False
 
-try:
-    import uinput
-except ImportError:
-    uinput = False
-
-if evdev and uinput:
+if evdev:
     from mopidy_evtdev import agent
 
 from mopidy.core import PlaybackState
@@ -28,17 +25,24 @@ def iterate_main():
         context.iteration(False)
 
 @unittest.skipUnless(evdev, 'evdev not found')
-@unittest.skipUnless(uinput, 'uinput not found')
 class EvtDevAgentTest(unittest.TestCase):
+    
     def setUp(self):
         self.dev_dir = '/dev/input'
-        self.device_prefix = 'Mopidy-DummyInputDevice-'
+        self.device_prefix = 'event'
         self.num_devs = 1
-        self.device_names = [self.device_prefix + str(i) for i in range(self.num_devs)]
+        self.device_names = [self.device_prefix + str(i) for i in range(8888, 8888+self.num_devs)]
         self.vol_step_size = 10
         self.refresh = 10
         self.core = mock.Mock()
-        self.devices = map(DummyInputDev, [self.device_prefix] * self.num_devs, range(self.num_devs))
+        config = { 'list_devices.return_value': self.device_names }
+        patcher = mock.patch('evdev.util', **config)
+        self.mock_list_devices = patcher.start()
+        self.addCleanup(patcher.stop)
+        patcher = mock.patch('evdev.device.InputDevice', MockedInputDevice)
+        self.mock_input_device = patcher.start()
+        self.addCleanup(patcher.stop)
+        self.devices = map(ProxyInputDevice, self.device_names)
         self.agent = agent.EvtDevAgent(self.core, self.dev_dir, self.device_names, self.vol_step_size, self.refresh)
 
     def tearDown(self):
@@ -135,51 +139,108 @@ class EvtDevAgentTest(unittest.TestCase):
         self.devices[0].send_previous_song()
         self.core.playback.previous.assert_called_once_with()
 
-# NOTE: This object is a uinput.Device which requires python to be invoked with root privileges
-# For the plug & play input subsystem you may find your OS intercepts the messages being
-# sent.  I haven't found a way to circumvent this behaviour so far.
 
-class DummyInputDev(uinput.Device):
-    def __init__(self, prefix, ident):
-        name = prefix + str(ident)
-        events = [uinput.KEY_PLAYCD, uinput.KEY_PLAY, uinput.KEY_PLAYPAUSE, uinput.KEY_PAUSE,
-                  uinput.KEY_NEXTSONG, uinput.KEY_PREVIOUSSONG, uinput.KEY_VOLUMEUP,
-                  uinput.KEY_VOLUMEDOWN, uinput.KEY_STOP, uinput.KEY_STOPCD, uinput.KEY_MUTE]
-        super(DummyInputDev, self).__init__(events, name=name)
+class PicklableInputEvent(evdev.events.InputEvent):
 
-    def emit_click(self, key):
-        super(DummyInputDev, self).emit_click(key)
+    def __init__(self, *args):
+        super(PicklableInputEvent, self).__init__(*args)
+
+    def __getstate__(self):
+        return { 'sec': self.sec, 'usec':self.usec, 'type':self.type,
+                 'code': self.code, 'value': self.value }
+
+# This mock provides sufficient functionality to mimic the
+# behaviour of InputDevice which gets patched during the unit tests
+
+class MockedInputDevice():
+
+    def __init__(self, device):
+        port = int(device[-4:])
+        self.sock = socket.socket(socket.AF_INET,
+                                  socket.SOCK_DGRAM)
+        self.sock.bind(('localhost', port))
+        self.sock.settimeout(0)
+        self.fd = self.sock.fileno()
+        self.fn = device
+        self.name = "Mocked Input Device"
+        self.phys = "Mock"
+        self.buf = []
+
+    def close(self):
+        self.sock.close()
+
+    def read_one(self):
+        try:
+            data, addr = self.sock.recvfrom(1024)
+            d = json.loads(data)
+            for i in d:
+                self.buf.append(i)
+        except:
+            pass
+        if (len(self.buf) > 0):
+            d = self.buf.pop(0)
+            return evdev.events.InputEvent(d['sec'], d['usec'],
+                                           d['type'], d['code'],
+                                           d['value'])
+        return None
+
+# Proxy input device acts as a proxy for a real input device.  It shares
+# the 'device' property with the actual mock thus allowing events to
+# be passed to the mock
+
+class ProxyInputDevice():
+
+    key_up   = 0x0
+    key_down = 0x1
+    key_hold = 0x2
+
+    def __init__(self, device):
+        self.port = int(device[-4:])
+        self.sock = socket.socket(socket.AF_INET,
+                                  socket.SOCK_DGRAM)
+
+    def _send_data(self, data):
+        self.sock.sendto(data, ('localhost', self.port))
+
+    def _make_event_dict(self, sec, usec, evtype, code, value):
+        return { 'sec': sec, 'usec':usec, 'type':evtype,
+                 'code': code, 'value': value }
+        
+    def _emit_click(self, code):
+        down = self._make_event_dict(0, 0, evdev.ecodes.EV_KEY, code, ProxyInputDevice.key_down)
+        up = self._make_event_dict(0, 0, evdev.ecodes.EV_KEY, code, ProxyInputDevice.key_up)
+        self._send_data(json.dumps([down,up]))
         iterate_main()
 
     def send_play(self):
-        self.emit_click(uinput.KEY_PLAY)
+        self._emit_click(evdev.ecodes.KEY_PLAY)
 
     def send_play_cd(self):
-        self.emit_click(uinput.KEY_PLAYCD)
+        self._emit_click(evdev.ecodes.KEY_PLAYCD)
     
     def send_play_pause(self):
-        self.emit_click(uinput.KEY_PLAYPAUSE)
+        self._emit_click(evdev.ecodes.KEY_PLAYPAUSE)
     
     def send_pause(self):
-        self.emit_click(uinput.KEY_PAUSE)
+        self._emit_click(evdev.ecodes.KEY_PAUSE)
     
     def send_next_song(self):
-        self.emit_click(uinput.KEY_NEXTSONG)
+        self._emit_click(evdev.ecodes.KEY_NEXTSONG)
     
     def send_previous_song(self):
-        self.emit_click(uinput.KEY_PREVIOUSSONG)
+        self._emit_click(evdev.ecodes.KEY_PREVIOUSSONG)
 
     def send_volume_up(self):
-        self.emit_click(uinput.KEY_VOLUMEUP)
+        self._emit_click(evdev.ecodes.KEY_VOLUMEUP)
 
     def send_volume_down(self):
-        self.emit_click(uinput.KEY_VOLUMEDOWN)
+        self._emit_click(evdev.ecodes.KEY_VOLUMEDOWN)
 
     def send_mute(self):
-        self.emit_click(uinput.KEY_MUTE)
+        self._emit_click(evdev.ecodes.KEY_MUTE)
 
     def send_stop(self):
-        self.emit_click(uinput.KEY_STOP)
+        self._emit_click(evdev.ecodes.KEY_STOP)
 
     def send_stop_cd(self):
-        self.emit_click(uinput.KEY_STOPCD)
+        self._emit_click(evdev.ecodes.KEY_STOPCD)
