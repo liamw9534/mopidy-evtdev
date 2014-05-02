@@ -8,10 +8,10 @@ install:
   - "sudo wget -O /etc/apt/sources.list.d/mopidy.list http://apt.mopidy.com/mopidy.list"
   - "sudo apt-get update || yes"
   - "sudo apt-get install mopidy"
-  - "sudo pip install --allow-unverified=mopidy coveralls mopidy==dev evdev python-uinput"
+  - "sudo pip install --allow-unverified=mopidy coveralls mopidy==dev evdev"
 
 script:
-  - "sudo nosetests --with-coverage --cover-package=mopidy_evtdev"
+  - "nosetests --with-coverage --cover-package=mopidy_evtdev"
 
 after_success:
   - "coveralls"
