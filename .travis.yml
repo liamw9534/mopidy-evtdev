@@ -7,7 +7,7 @@ install:
   - "sudo wget -O /etc/apt/sources.list.d/mopidy.list http://apt.mopidy.com/mopidy.list"
   - "sudo apt-get update || true"
   - "sudo apt-get install mopidy"
-  - "pip install --allow-unverified=mopidy coveralls mopidy==dev evdev"
+  - "sudo pip install --allow-unverified=mopidy coveralls mopidy==dev evdev"
 
 script:
   - "nosetests --with-coverage --cover-package=mopidy_evtdev"
