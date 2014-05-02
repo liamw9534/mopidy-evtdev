@@ -26,12 +26,12 @@ setup(
         'setuptools',
         'Mopidy >= 0.18',
         'Pykka >= 1.1',
-        'evdev >= 0.4.3'
+        'evdev >= 0.4.3',
     ],
     test_suite='nose.collector',
     tests_require=[
         'nose',
-        'mock >= 1.0'
+        'mock >= 1.0',
     ],
     entry_points={
         'mopidy.ext': [
