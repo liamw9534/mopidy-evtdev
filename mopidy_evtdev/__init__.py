@@ -1,15 +1,10 @@
 from __future__ import unicode_literals
 
-import logging
 import os
 
 from mopidy import config, ext, exceptions
-import mopidy
-
 
 __version__ = '0.1.0'
-
-logger = logging.getLogger(__name__)
 
 
 class Extension(ext.Extension):
