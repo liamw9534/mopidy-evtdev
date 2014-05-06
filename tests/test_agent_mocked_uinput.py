@@ -91,7 +91,7 @@ class EvtDevAgentTestCorners(unittest.TestCase):
         io_exception = IOError('Mocked IO Error')
         mock_device.read_one.side_effect = io_exception 
         value = io_callback('NA', 'NA', mock_device)
-        self.assertFalse(value, 'Expected io_callback exception error -> False')
+        self.assertTrue(value)
         a.stop()
 
 @unittest.skipUnless(evdev, 'evdev not found')

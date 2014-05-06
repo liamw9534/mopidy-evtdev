@@ -66,10 +66,11 @@ class EvtDevAgent(object):
                 self._handle_key_event(event)
                 event = input_device.read_one()
         except IOError:
-            # The input source we are monitoring has perhaps been closed
-            # so we should no longer process it
-            return False
-        return True    # Continue to process this fd
+            # The device has no more data or the handle has been closed
+            # Either way we just ignore this here since it will get cleaned up
+            # later
+            pass
+        return True
 
     def _refresh_timeout_callback(self):
         self._cleanup_stale_devices()
@@ -183,8 +184,8 @@ class EvtDevAgent(object):
 
     def _register_io_watches(self):
         for device_name in self.curr_input_devices.keys():
-            logger.debug('Adding io watch for: %s', device_name)
             if (device_name not in self.event_sources.keys()):
+                logger.debug('Adding io watch for: %s', device_name)
                 device = self.curr_input_devices[device_name]
                 tag = gobject.io_add_watch(device.fd, gobject.IO_IN,
                                            self._fd_ready_callback,
