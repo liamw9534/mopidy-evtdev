@@ -21,8 +21,8 @@ class EvtDevAgent(object):
         self.refresh = refresh
         self.last_key_event = None
         self.last_event = None
-        self.curr_input_devices = []
-        self.event_sources = []
+        self.curr_input_devices = {}
+        self.event_sources = {}
 
         # Setup dict map of ecode events to handler functions
         self.ecode_map = {
@@ -65,17 +65,14 @@ class EvtDevAgent(object):
                 logger.debug('EvtDevAgent received device event: %s', event)
                 self._handle_key_event(event)
                 event = input_device.read_one()
-        except:
-            pass
+        except IOError:
+            # The input source we are monitoring has perhaps been closed
+            # so we should no longer process it
+            return False
         return True    # Continue to process this fd
 
     def _refresh_timeout_callback(self):
-        # TODO: Temporary brute force method of detecting new devices
-        # It closes everything and re-opens everything again which
-        # results in losing stale devices and also gaining new
-        # attached devices
-        self._deregister_event_sources()
-        self._close_current_input_devices()
+        self._cleanup_stale_devices()
         self._open_permitted_devices()
         self._register_io_watches()
         self._register_refresh_timeout()
@@ -138,26 +135,26 @@ class EvtDevAgent(object):
     def _volume_up(self):
         volume = self.core.playback.volume.get()
         if (volume is not None):
-          volume = min(100, volume + self.vol_step_size)
-          self.core.playback.set_volume(volume)
-          self.core.playback.set_mute(False)
-          logger.info('EvtDevAgent has set volume +%d to %d', self.vol_step_size, volume)
+            volume = min(100, volume + self.vol_step_size)
+            self.core.playback.set_volume(volume)
+            self.core.playback.set_mute(False)
+            logger.info('EvtDevAgent has set volume +%d to %d', self.vol_step_size, volume)
     
     def _volume_down(self):
         volume = self.core.playback.volume.get()
         if (volume is not None):
-          volume = max(0, volume - self.vol_step_size)
-          self.core.playback.set_volume(volume)
-          self.core.playback.set_mute(False)
-          logger.info('EvtDevAgent has set volume -%d to %d', self.vol_step_size, volume)
+            volume = max(0, volume - self.vol_step_size)
+            self.core.playback.set_volume(volume)
+            self.core.playback.set_mute(False)
+            logger.info('EvtDevAgent has set volume -%d to %d', self.vol_step_size, volume)
 
     def _mute(self):
         mute = self.core.playback.mute.get()
         if (mute is not None):
-          state = {True:'on', False:'off'}
-          mute = not mute
-          self.core.playback.set_mute(mute)
-          logger.info('EvtDevAgent has set mute: %s', state[mute])
+            state = {True:'on', False:'off'}
+            mute = not mute
+            self.core.playback.set_mute(mute)
+            logger.info('EvtDevAgent has set mute: %s', state[mute])
 
     def _next_track(self):
         self.core.playback.next()
@@ -171,67 +168,73 @@ class EvtDevAgent(object):
     def _open_device_list(devices):
         return map(evdev.device.InputDevice, devices)
 
-    @staticmethod
-    def _close_input_device_list(input_devices):
-        for device in input_devices:
-            try:
-                device.close()
-            except OSError:
-                pass
+    def _close_input_device(self, device_name):
+        try:
+            device = self.curr_input_devices.pop(device_name)
+            device.close()
+        except OSError:
+            pass
 
     def _register_refresh_timeout(self):
-        tag = gobject.timeout_add(self.refresh * 1000,
+        tag = gobject.timeout_add(int(self.refresh * 1000),
                                   self._refresh_timeout_callback)
-        self.event_sources.append(tag)
+        self.event_sources['timeout'] = tag
         logger.debug('EvtDevAgent event sources: %s', self.event_sources)
 
     def _register_io_watches(self):
-        for input_device in self.curr_input_devices:
-            logger.debug('Adding io watch for: %s', input_device)
-            tag = gobject.io_add_watch(input_device.fd, gobject.IO_IN,
-                                       self._fd_ready_callback,
-                                       input_device)
-            self.event_sources.append(tag)
+        for device_name in self.curr_input_devices.keys():
+            logger.debug('Adding io watch for: %s', device_name)
+            if (device_name not in self.event_sources.keys()):
+                device = self.curr_input_devices[device_name]
+                tag = gobject.io_add_watch(device.fd, gobject.IO_IN,
+                                           self._fd_ready_callback,
+                                           device)
+                self.event_sources[device_name] = tag
         logger.debug('EvtDevAgent event sources: %s', self.event_sources)
 
-    def _deregister_event_sources(self):
-        for tag in self.event_sources:
+    def _deregister_event_source(self, source):
+        tag = self.event_sources.pop(source, None)
+        if (tag is not None):
             gobject.source_remove(tag)
-        self.event_sources = []
+
+    def _deregister_event_sources(self):
+        for source in self.event_sources.keys():
+            self._deregister_event_source(source)
+
+    def _cleanup_stale_devices(self):
+        device_list = evdev.util.list_devices(self.dev_dir)
+        for device_name in self.curr_input_devices.keys():
+            if (device_name not in device_list):
+                self._deregister_event_source(device_name)
+                self._close_input_device(device_name)
 
     def _open_permitted_devices(self):
         available_input_devices = EvtDevAgent._open_device_list(evdev.util.list_devices(self.dev_dir))
-        actual_input_devices = []
-        if (self.permitted_devices):
-            for device in available_input_devices:
-                
-                # We allow permitted devices to be a reference by their
-                # device path, name or physical address for flexibility.
-                #
-                # EXAMPLES:
-                #
-                # 1) 'isa0060/serio0/input0' is a physical device instance
-                # which is a keyboard called 'AT Translated Set 2 keyboard'.
-                # 2) 'AT Translated Set 2 keyboard' would permit all
-                # physical devices that share this name.
-                # 3) '00:11:67:D2:AB:EE' is a device name for bluetooth; sadly
-                # evdev does not see this as its physical address which would be
-                # more logical (real name is actually 'BTS-06' but this is not
-                # available from evdev).
+        for device in available_input_devices:
+            # We allow permitted devices to be a reference by their
+            # device path, name or physical address for flexibility.
+            #
+            # EXAMPLES:
+            #
+            # 1) 'isa0060/serio0/input0' is a physical device instance
+            # which is a keyboard called 'AT Translated Set 2 keyboard'.
+            # 2) 'AT Translated Set 2 keyboard' would permit all
+            # physical devices that share this name.
+            # 3) '00:11:67:D2:AB:EE' is a device name for bluetooth; sadly
+            # evdev does not see this as its physical address which would be
+            # more logical (real name is actually 'BTS-06' but this is not
+            # available from evdev).
+            if ((not self.permitted_devices or
+                 unicode(device.fn) in self.permitted_devices or
+                 unicode(device.name) in self.permitted_devices or
+                 unicode(device.phys) in self.permitted_devices) and
+                 device.fn not in self.curr_input_devices.keys()):
+                self.curr_input_devices[device.fn] = device
+            else:
+                device.close()
+            logger.debug('EvtDevAgent registered devices: %s', self.curr_input_devices.keys())
 
-                if (unicode(device.fn) in self.permitted_devices or
-                    unicode(device.name) in self.permitted_devices or
-                    unicode(device.phys) in self.permitted_devices):
-                    actual_input_devices.append(device)
-                else:
-                    device.close()
-            logger.debug('EvtDevAgent has registered: %s', [device.fn for device in actual_input_devices])
-            self.curr_input_devices = actual_input_devices
-        else:
-            logger.debug('EvtDevAgent has registered: %s', [device.fn for device in available_input_devices])
-            self.curr_input_devices = available_input_devices
-                
     def _close_current_input_devices(self):
-        logger.debug('EvtDevAgent is closing: %s', [device.fn for device in self.curr_input_devices])
-        EvtDevAgent._close_input_device_list(self.curr_input_devices)
-        self.curr_input_devices = []
+        logger.debug('EvtDevAgent is closing: %s', self.curr_input_devices.keys())
+        for device_name in self.curr_input_devices.keys():
+            self._close_input_device(device_name)

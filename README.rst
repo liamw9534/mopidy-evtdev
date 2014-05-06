@@ -49,12 +49,12 @@ Mopidy-EvtDev to your Mopidy configuration file::
 To permit mopidy to read virtual input devices without root permissions, you need to add
 the following into /etc/udev/rules.d/99-input.rules:
 
-KERNEL=="event*", NAME="input/%k", MODE="660", GROUP="audio"
+	KERNEL=="event*", NAME="input/%k", MODE="660", GROUP="audio"
 
 If you are concerned by security, then create a separate group name and add mopidy as a member
 to that group.  E.g.,
 
-KERNEL=="event*", NAME="input/%k", MODE="660", GROUP="input"
+	KERNEL=="event*", NAME="input/%k", MODE="660", GROUP="input"
 
 Otherwise, just run mopidy as root to avoid any additional configuration requirements.
 
@@ -68,6 +68,12 @@ Project resources
 
 Changelog
 =========
+
+v0.1.1
+----------------------------------------
+
+- Fixes issue #7: Race hazard - closing and re-opening already devices causes events to be missed.
+- Improved unit test coverage.
 
 v0.1.0
 ----------------------------------------

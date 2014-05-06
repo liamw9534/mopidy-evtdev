@@ -4,6 +4,7 @@ import mock
 import unittest
 import json
 import socket
+import time
 
 import gobject
 gobject.threads_init()
@@ -24,16 +25,85 @@ def iterate_main():
     while context.pending():
         context.iteration(False)
 
+class EvtDevAgentTestCorners(unittest.TestCase):
+
+    def setUp(self):
+        self.core = mock.Mock()
+        self.path = '/dev/input'
+        self.dev = 'event0'
+        self.refresh_period = 0.1
+        self.vol_step_size = 10
+
+    @mock.patch('evdev.util.list_devices')
+    @mock.patch('gobject.io_add_watch')
+    @mock.patch('gobject.source_remove')
+    @mock.patch('evdev.device.InputDevice', autospec=True)
+    def test_cleanup_on_stale_device(self, input_device, source_remove, io_add_watch, list_devices):
+        list_devices.return_value = [ self.dev ]
+        mock_device = mock.MagicMock()
+        mock_device.fd = 'N/A'
+        mock_device.fn = self.dev
+        mock_device.phys = 'Mock'
+        mock_device.name = 'Mock Device'
+        input_device.return_value = mock_device
+        a = agent.EvtDevAgent(self.core, self.path, [], self.vol_step_size, self.refresh_period)
+        list_devices.assert_called_with(self.path)
+        input_device.assert_called_with(self.dev)
+        list_devices.return_value = []
+        time.sleep(self.refresh_period)
+        iterate_main()
+        mock_device.close.assert_called_with()
+        a.stop()
+
+    @mock.patch('evdev.util.list_devices')
+    @mock.patch('gobject.io_add_watch')
+    @mock.patch('gobject.source_remove')
+    @mock.patch('evdev.device.InputDevice', autospec=True)
+    def test_cleanup_on_stop(self, input_device, source_remove, io_add_watch, list_devices):
+        list_devices.return_value = [ self.dev ]
+        mock_device = mock.MagicMock()
+        mock_device.fd = 'N/A'
+        mock_device.fn = self.dev
+        mock_device.phys = 'Mock'
+        mock_device.name = 'Mock Device'
+        input_device.return_value = mock_device
+        a = agent.EvtDevAgent(self.core, self.path, [], self.vol_step_size, self.refresh_period)
+        input_device.assert_called_with(self.dev)
+        a.stop()
+        mock_device.close.assert_called_with()
+
+    @mock.patch('gobject.timeout_add')
+    @mock.patch('evdev.util.list_devices')
+    @mock.patch('gobject.io_add_watch')
+    @mock.patch('gobject.source_remove')
+    @mock.patch('evdev.device.InputDevice', autospec=True)
+    def test_fd_io_error(self, input_device, source_remove, io_add_watch, list_devices, timeout_add):
+        list_devices.return_value = [ self.dev ]
+        mock_device = mock.MagicMock()
+        mock_device.fd = 'N/A'
+        mock_device.fn = self.dev
+        mock_device.phys = 'Mock'
+        mock_device.name = 'Mock Device'
+        input_device.return_value = mock_device
+        a = agent.EvtDevAgent(self.core, self.path, [], self.vol_step_size, self.refresh_period)
+        io_add_watch.assert_called()
+        io_callback = io_add_watch.call_args_list[0][0][2]
+        io_exception = IOError('Mocked IO Error')
+        mock_device.read_one.side_effect = io_exception 
+        value = io_callback('NA', 'NA', mock_device)
+        self.assertFalse(value, 'Expected io_callback exception error -> False')
+        a.stop()
+
 @unittest.skipUnless(evdev, 'evdev not found')
 class EvtDevAgentTest(unittest.TestCase):
-    
+
     def setUp(self):
         self.dev_dir = '/dev/input'
         self.device_prefix = 'event'
         self.num_devs = 1
         self.device_names = [self.device_prefix + str(i) for i in range(8888, 8888+self.num_devs)]
         self.vol_step_size = 10
-        self.refresh = 10
+        self.refresh = 0.1
         self.core = mock.Mock()
         config = { 'list_devices.return_value': self.device_names }
         patcher = mock.patch('evdev.util', **config)
@@ -139,16 +209,6 @@ class EvtDevAgentTest(unittest.TestCase):
         self.devices[0].send_previous_song()
         self.core.playback.previous.assert_called_once_with()
 
-
-class PicklableInputEvent(evdev.events.InputEvent):
-
-    def __init__(self, *args):
-        super(PicklableInputEvent, self).__init__(*args)
-
-    def __getstate__(self):
-        return { 'sec': self.sec, 'usec':self.usec, 'type':self.type,
-                 'code': self.code, 'value': self.value }
-
 # This mock provides sufficient functionality to mimic the
 # behaviour of InputDevice which gets patched during the unit tests
 
@@ -205,7 +265,7 @@ class ProxyInputDevice():
     def _make_event_dict(self, sec, usec, evtype, code, value):
         return { 'sec': sec, 'usec':usec, 'type':evtype,
                  'code': code, 'value': value }
-        
+
     def _emit_click(self, code):
         down = self._make_event_dict(0, 0, evdev.ecodes.EV_KEY, code, ProxyInputDevice.key_down)
         up = self._make_event_dict(0, 0, evdev.ecodes.EV_KEY, code, ProxyInputDevice.key_up)
