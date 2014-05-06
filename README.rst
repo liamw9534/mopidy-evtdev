@@ -2,7 +2,7 @@
 Mopidy-EvtDev
 ****************************
 
-.. image:: https://pypip.in/version/Mopidy-EvtDev/badge.png
+.. image:: https://pypip.in/version/Mopidy-EvtDev/badge.png?latest
     :target: https://pypi.python.org/pypi/Mopidy-EvtDev/
     :alt: Latest PyPI version
 
