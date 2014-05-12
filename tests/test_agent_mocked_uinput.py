@@ -21,9 +21,11 @@ from mopidy.core import PlaybackState
 
 context = gobject.MainLoop().get_context()
 
+
 def iterate_main():
     while context.pending():
         context.iteration(False)
+
 
 class EvtDevAgentTestCorners(unittest.TestCase):
 
@@ -38,15 +40,17 @@ class EvtDevAgentTestCorners(unittest.TestCase):
     @mock.patch('gobject.io_add_watch')
     @mock.patch('gobject.source_remove')
     @mock.patch('evdev.device.InputDevice', autospec=True)
-    def test_cleanup_on_stale_device(self, input_device, source_remove, io_add_watch, list_devices):
-        list_devices.return_value = [ self.dev ]
+    def test_cleanup_on_stale_device(self, input_device, source_remove,
+                                     io_add_watch, list_devices):
+        list_devices.return_value = [self.dev]
         mock_device = mock.MagicMock()
         mock_device.fd = 'N/A'
         mock_device.fn = self.dev
         mock_device.phys = 'Mock'
         mock_device.name = 'Mock Device'
         input_device.return_value = mock_device
-        a = agent.EvtDevAgent(self.core, self.path, [], self.vol_step_size, self.refresh_period)
+        a = agent.EvtDevAgent(self.core, self.path, [], self.vol_step_size,
+                              self.refresh_period)
         list_devices.assert_called_with(self.path)
         input_device.assert_called_with(self.dev)
         list_devices.return_value = []
@@ -59,15 +63,17 @@ class EvtDevAgentTestCorners(unittest.TestCase):
     @mock.patch('gobject.io_add_watch')
     @mock.patch('gobject.source_remove')
     @mock.patch('evdev.device.InputDevice', autospec=True)
-    def test_cleanup_on_stop(self, input_device, source_remove, io_add_watch, list_devices):
-        list_devices.return_value = [ self.dev ]
+    def test_cleanup_on_stop(self, input_device, source_remove,
+                             io_add_watch, list_devices):
+        list_devices.return_value = [self.dev]
         mock_device = mock.MagicMock()
         mock_device.fd = 'N/A'
         mock_device.fn = self.dev
         mock_device.phys = 'Mock'
         mock_device.name = 'Mock Device'
         input_device.return_value = mock_device
-        a = agent.EvtDevAgent(self.core, self.path, [], self.vol_step_size, self.refresh_period)
+        a = agent.EvtDevAgent(self.core, self.path, [],
+                              self.vol_step_size, self.refresh_period)
         input_device.assert_called_with(self.dev)
         a.stop()
         mock_device.close.assert_called_with()
@@ -77,22 +83,25 @@ class EvtDevAgentTestCorners(unittest.TestCase):
     @mock.patch('gobject.io_add_watch')
     @mock.patch('gobject.source_remove')
     @mock.patch('evdev.device.InputDevice', autospec=True)
-    def test_fd_io_error(self, input_device, source_remove, io_add_watch, list_devices, timeout_add):
-        list_devices.return_value = [ self.dev ]
+    def test_fd_io_error(self, input_device, source_remove,
+                         io_add_watch, list_devices, timeout_add):
+        list_devices.return_value = [self.dev]
         mock_device = mock.MagicMock()
         mock_device.fd = 'N/A'
         mock_device.fn = self.dev
         mock_device.phys = 'Mock'
         mock_device.name = 'Mock Device'
         input_device.return_value = mock_device
-        a = agent.EvtDevAgent(self.core, self.path, [], self.vol_step_size, self.refresh_period)
+        a = agent.EvtDevAgent(self.core, self.path, [],
+                              self.vol_step_size, self.refresh_period)
         io_add_watch.assert_called()
         io_callback = io_add_watch.call_args_list[0][0][2]
         io_exception = IOError('Mocked IO Error')
-        mock_device.read_one.side_effect = io_exception 
+        mock_device.read_one.side_effect = io_exception
         value = io_callback('NA', 'NA', mock_device)
         self.assertTrue(value)
         a.stop()
+
 
 @unittest.skipUnless(evdev, 'evdev not found')
 class EvtDevAgentTest(unittest.TestCase):
@@ -101,11 +110,12 @@ class EvtDevAgentTest(unittest.TestCase):
         self.dev_dir = '/dev/input'
         self.device_prefix = 'event'
         self.num_devs = 1
-        self.device_names = [self.device_prefix + str(i) for i in range(8888, 8888+self.num_devs)]
+        self.device_names = [self.device_prefix + str(i)
+                             for i in range(8888, 8888+self.num_devs)]
         self.vol_step_size = 10
         self.refresh = 0.1
         self.core = mock.Mock()
-        config = { 'list_devices.return_value': self.device_names }
+        config = {'list_devices.return_value': self.device_names}
         patcher = mock.patch('evdev.util', **config)
         self.mock_list_devices = patcher.start()
         self.addCleanup(patcher.stop)
@@ -113,7 +123,9 @@ class EvtDevAgentTest(unittest.TestCase):
         self.mock_input_device = patcher.start()
         self.addCleanup(patcher.stop)
         self.devices = map(ProxyInputDevice, self.device_names)
-        self.agent = agent.EvtDevAgent(self.core, self.dev_dir, self.device_names, self.vol_step_size, self.refresh)
+        self.agent = agent.EvtDevAgent(self.core, self.dev_dir,
+                                       self.device_names, self.vol_step_size,
+                                       self.refresh)
 
     def tearDown(self):
         self.agent.stop()
@@ -170,26 +182,30 @@ class EvtDevAgentTest(unittest.TestCase):
         volume = 10
         self.core.playback.volume.get.return_value = volume
         self.devices[0].send_volume_up()
-        self.core.playback.set_volume.assert_called_once_with(min(100, volume + self.vol_step_size))
+        self.core.playback.set_volume.assert_called_once_with(
+            min(100, volume + self.vol_step_size))
         self.core.playback.set_mute.assert_called_once_with(False)
         self.core.reset_mock()
         volume = 99
         self.core.playback.volume.get.return_value = volume
         self.devices[0].send_volume_up()
-        self.core.playback.set_volume.assert_called_once_with(min(100, volume + self.vol_step_size))
+        self.core.playback.set_volume.assert_called_once_with(
+            min(100, volume + self.vol_step_size))
         self.core.playback.set_mute.assert_called_once_with(False)
 
     def test_volume_down(self):
         volume = 20
         self.core.playback.volume.get.return_value = volume
         self.devices[0].send_volume_down()
-        self.core.playback.set_volume.assert_called_once_with(max(0, volume - self.vol_step_size))
+        self.core.playback.set_volume.assert_called_once_with(
+            max(0, volume - self.vol_step_size))
         self.core.playback.set_mute.assert_called_once_with(False)
         self.core.reset_mock()
         volume = 1
         self.core.playback.volume.get.return_value = volume
         self.devices[0].send_volume_down()
-        self.core.playback.set_volume.assert_called_once_with(max(0, volume - self.vol_step_size))
+        self.core.playback.set_volume.assert_called_once_with(
+            max(0, volume - self.vol_step_size))
         self.core.playback.set_mute.assert_called_once_with(False)
 
     def test_mute(self):
@@ -211,6 +227,7 @@ class EvtDevAgentTest(unittest.TestCase):
 
 # This mock provides sufficient functionality to mimic the
 # behaviour of InputDevice which gets patched during the unit tests
+
 
 class MockedInputDevice():
 
@@ -248,9 +265,10 @@ class MockedInputDevice():
 # the 'device' property with the actual mock thus allowing events to
 # be passed to the mock
 
+
 class ProxyInputDevice():
 
-    key_up   = 0x0
+    key_up = 0x0
     key_down = 0x1
     key_hold = 0x2
 
@@ -263,13 +281,15 @@ class ProxyInputDevice():
         self.sock.sendto(data, ('localhost', self.port))
 
     def _make_event_dict(self, sec, usec, evtype, code, value):
-        return { 'sec': sec, 'usec':usec, 'type':evtype,
-                 'code': code, 'value': value }
+        return {'sec': sec, 'usec': usec, 'type': evtype,
+                'code': code, 'value': value}
 
     def _emit_click(self, code):
-        down = self._make_event_dict(0, 0, evdev.ecodes.EV_KEY, code, ProxyInputDevice.key_down)
-        up = self._make_event_dict(0, 0, evdev.ecodes.EV_KEY, code, ProxyInputDevice.key_up)
-        self._send_data(json.dumps([down,up]))
+        down = self._make_event_dict(0, 0, evdev.ecodes.EV_KEY, code,
+                                     ProxyInputDevice.key_down)
+        up = self._make_event_dict(0, 0, evdev.ecodes.EV_KEY, code,
+                                   ProxyInputDevice.key_up)
+        self._send_data(json.dumps([down, up]))
         iterate_main()
 
     def send_play(self):
@@ -277,16 +297,16 @@ class ProxyInputDevice():
 
     def send_play_cd(self):
         self._emit_click(evdev.ecodes.KEY_PLAYCD)
-    
+
     def send_play_pause(self):
         self._emit_click(evdev.ecodes.KEY_PLAYPAUSE)
-    
+
     def send_pause(self):
         self._emit_click(evdev.ecodes.KEY_PAUSE)
-    
+
     def send_next_song(self):
         self._emit_click(evdev.ecodes.KEY_NEXTSONG)
-    
+
     def send_previous_song(self):
         self._emit_click(evdev.ecodes.KEY_PREVIOUSSONG)
 

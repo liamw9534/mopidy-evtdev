@@ -27,7 +27,7 @@ class Extension(ext.Extension):
 
     def validate_environment(self):
         try:
-            import evdev
+            import evdev            # noqa
         except ImportError as e:
             raise exceptions.ExtensionError('Unable to find evdev module', e)
 

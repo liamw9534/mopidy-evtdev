@@ -34,7 +34,8 @@ class ExtensionTest(unittest.TestCase):
         ext = Extension()
         ext.setup(registry)
 
-        registry.add.assert_called_with('frontend', frontend_lib.EvtDevFrontend)
+        registry.add.assert_called_with('frontend',
+                                        frontend_lib.EvtDevFrontend)
 
     def test_validate_environment(self):
         ext = Extension()

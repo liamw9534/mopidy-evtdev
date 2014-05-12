@@ -16,8 +16,10 @@ class EvtDevFrontend(pykka.ThreadingActor):
         vol_step_size = config['evtdev']['vol_step_size']
         refresh = config['evtdev']['refresh']
 
-        # EvtDevAgent performs all the handling of device key presses on our behalf
-        self.agent = EvtDevAgent(core, dev_dir, devices, vol_step_size, refresh)
+        # EvtDevAgent performs all the handling of device
+        # key presses on our behalf
+        self.agent = EvtDevAgent(core, dev_dir, devices,
+                                 vol_step_size, refresh)
         logger.info('EvtDevAgent started')
 
     def on_stop(self):

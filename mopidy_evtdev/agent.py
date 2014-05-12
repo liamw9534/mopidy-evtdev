@@ -1,12 +1,13 @@
 from __future__ import unicode_literals
 
-import logging, sys
+import logging
 import gobject
 import evdev
 
 from mopidy.core import PlaybackState
 
 logger = logging.getLogger(__name__)
+
 
 class EvtDevAgent(object):
 
@@ -39,8 +40,9 @@ class EvtDevAgent(object):
             evdev.ecodes.KEY_VOLUMEDOWN: self._volume_down,
             evdev.ecodes.KEY_MUTE: self._mute
         }
-        
-        # This will initiate a refresh of all attached devices and initiate timeouts
+
+        # This will initiate a refresh of all attached devices and
+        # initiate timeouts
         self._refresh_timeout_callback()
 
     def stop(self):
@@ -49,11 +51,14 @@ class EvtDevAgent(object):
 
     @staticmethod
     def _is_max_time_interval_elapsed(first, second):
-        return (second.timestamp() - first.timestamp()) > EvtDevAgent.MAX_TIME_INTERVAL
+        return ((second.timestamp() - first.timestamp()) >
+                EvtDevAgent.MAX_TIME_INTERVAL)
 
     @staticmethod
     def _is_key_event_type(event):
-        return event.type in evdev.events.event_factory and evdev.events.event_factory[event.type] is evdev.events.KeyEvent
+        return (event.type in evdev.events.event_factory and
+                evdev.events.event_factory[event.type] is
+                evdev.events.KeyEvent)
 
     def _is_supported_ecode(self, ecode):
         return ecode in self.ecode_map.keys()
@@ -62,7 +67,7 @@ class EvtDevAgent(object):
         try:
             event = input_device.read_one()
             while (event):
-                logger.debug('EvtDevAgent received device event: %s', event)
+                logger.debug('Received device event: %s', event)
                 self._handle_key_event(event)
                 event = input_device.read_one()
         except IOError:
@@ -83,11 +88,12 @@ class EvtDevAgent(object):
         if (EvtDevAgent._is_key_event_type(event)):
             key_event = evdev.events.KeyEvent(event)
 
-            logger.debug('EvtDevAgent received key event: %s', key_event)
+            logger.debug('Received key event: %s', key_event)
 
             # Allowed state transitions take the form:
             #
-            # KEY_PRESS(n): CODE=X, STATE=DOWN/HOLD -> KEY_PRESS(n+1): CODE=X, STATE=UP
+            # KEY_PRESS(n): CODE=X, STATE=DOWN/HOLD ->
+            #               KEY_PRESS(n+1): CODE=X, STATE=UP
             #
             # NOTES:
             # 1) Any transition from n to n+1 where codes do not match or
@@ -99,18 +105,26 @@ class EvtDevAgent(object):
 
             if (self.last_event and
                 self.last_key_event and
-                self.last_key_event.keycode == key_event.keycode and
-                (self.last_key_event.keystate == evdev.events.KeyEvent.key_down or
-                 self.last_key_event.keystate == evdev.events.KeyEvent.key_hold) and
-                key_event.keystate == evdev.events.KeyEvent.key_up):
+                (self.last_key_event.keycode ==
+                 key_event.keycode) and
+                (self.last_key_event.keystate ==
+                 evdev.events.KeyEvent.key_down or
+                 self.last_key_event.keystate ==
+                 evdev.events.KeyEvent.key_hold) and
+                (key_event.keystate ==
+                 evdev.events.KeyEvent.key_up)):
 
-                if (EvtDevAgent._is_max_time_interval_elapsed(self.last_event, event)):
-                    logger.debug('EvtDevAgent detected interval too long between key presses')
+                if (EvtDevAgent._is_max_time_interval_elapsed(
+                        self.last_event, event)):
+                    logger.debug(
+                        'Detected interval too long between key presses')
                 elif (self._is_supported_ecode(key_event.scancode)):
-                    logger.debug('EvtDevAgent received completed key press transition: %s', key_event)
+                    logger.debug('Received completed key press transition: %s',
+                                 key_event)
                     self.ecode_map[key_event.scancode]()
                 else:
-                    logger.debug('EvtDevAgent received unsupported key press event: %s', key_event)   
+                    logger.debug('Received unsupported key press event: %s',
+                                 key_event)
                 self.last_key_event = None
                 self.last_event = None
             else:
@@ -121,17 +135,17 @@ class EvtDevAgent(object):
         state = self.core.playback.state.get()
         if (state == PlaybackState.PLAYING):
             self.core.playback.pause()
-            logger.info('EvtDevAgent has paused playback')
+            logger.info('Paused playback')
         elif (state == PlaybackState.PAUSED):
             self.core.playback.resume()
-            logger.info('EvtDevAgent has resumed playback')
+            logger.info('Resumed playback')
         else:
             self.core.playback.play()
-            logger.info('EvtDevAgent has started playback')
+            logger.info('Started playback')
 
     def _stop(self):
         self.core.playback.stop()
-        logger.info('EvtDevAgent has stopped playback')
+        logger.info('Stopped playback')
 
     def _volume_up(self):
         volume = self.core.playback.volume.get()
@@ -139,31 +153,33 @@ class EvtDevAgent(object):
             volume = min(100, volume + self.vol_step_size)
             self.core.playback.set_volume(volume)
             self.core.playback.set_mute(False)
-            logger.info('EvtDevAgent has set volume +%d to %d', self.vol_step_size, volume)
-    
+            logger.info('Set volume +%d to %d',
+                        self.vol_step_size, volume)
+
     def _volume_down(self):
         volume = self.core.playback.volume.get()
         if (volume is not None):
             volume = max(0, volume - self.vol_step_size)
             self.core.playback.set_volume(volume)
             self.core.playback.set_mute(False)
-            logger.info('EvtDevAgent has set volume -%d to %d', self.vol_step_size, volume)
+            logger.info('Set volume -%d to %d',
+                        self.vol_step_size, volume)
 
     def _mute(self):
         mute = self.core.playback.mute.get()
         if (mute is not None):
-            state = {True:'on', False:'off'}
+            state = {True: 'on', False: 'off'}
             mute = not mute
             self.core.playback.set_mute(mute)
-            logger.info('EvtDevAgent has set mute: %s', state[mute])
+            logger.info('Set mute: %s', state[mute])
 
     def _next_track(self):
         self.core.playback.next()
-        logger.info('EvtDevAgent has selected next track')
+        logger.info('Selected next track')
 
     def _prev_track(self):
         self.core.playback.previous()
-        logger.info('EvtDevAgent has selected previous track')
+        logger.info('Selected previous track')
 
     @staticmethod
     def _open_device_list(devices):
@@ -180,7 +196,7 @@ class EvtDevAgent(object):
         tag = gobject.timeout_add(int(self.refresh * 1000),
                                   self._refresh_timeout_callback)
         self.event_sources['timeout'] = tag
-        logger.debug('EvtDevAgent event sources: %s', self.event_sources)
+        logger.debug('Event sources: %s', self.event_sources)
 
     def _register_io_watches(self):
         for device_name in self.curr_input_devices.keys():
@@ -191,7 +207,7 @@ class EvtDevAgent(object):
                                            self._fd_ready_callback,
                                            device)
                 self.event_sources[device_name] = tag
-        logger.debug('EvtDevAgent event sources: %s', self.event_sources)
+        logger.debug('Event sources: %s', self.event_sources)
 
     def _deregister_event_source(self, source):
         tag = self.event_sources.pop(source, None)
@@ -210,7 +226,9 @@ class EvtDevAgent(object):
                 self._close_input_device(device_name)
 
     def _open_permitted_devices(self):
-        available_input_devices = EvtDevAgent._open_device_list(evdev.util.list_devices(self.dev_dir))
+        available_input_devices = \
+            EvtDevAgent._open_device_list(
+                evdev.util.list_devices(self.dev_dir))
         for device in available_input_devices:
             # We allow permitted devices to be a reference by their
             # device path, name or physical address for flexibility.
@@ -228,14 +246,16 @@ class EvtDevAgent(object):
             if ((not self.permitted_devices or
                  unicode(device.fn) in self.permitted_devices or
                  unicode(device.name) in self.permitted_devices or
-                 unicode(device.phys) in self.permitted_devices) and
-                 device.fn not in self.curr_input_devices.keys()):
+                 unicode(device.phys) in self.permitted_devices
+                 ) and device.fn not in self.curr_input_devices.keys()):
                 self.curr_input_devices[device.fn] = device
             else:
                 device.close()
-            logger.debug('EvtDevAgent registered devices: %s', self.curr_input_devices.keys())
+            logger.debug('Registered devices: %s',
+                         self.curr_input_devices.keys())
 
     def _close_current_input_devices(self):
-        logger.debug('EvtDevAgent is closing: %s', self.curr_input_devices.keys())
+        logger.debug('Closing: %s',
+                     self.curr_input_devices.keys())
         for device_name in self.curr_input_devices.keys():
             self._close_input_device(device_name)
